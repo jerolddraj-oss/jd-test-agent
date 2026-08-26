@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """MVP-2 LLM remediation agent for Terraform apply failures.
 
-The model diagnoses the incident and proposes ONE minimal patch. This process
-then applies the patch only when it passes deterministic safety checks and
-Terraform validation/plan. The model never receives permission to execute
-shell commands or modify the Git repository.
+The model diagnoses a Jenkins Terraform APPLY failure and proposes ONE minimal
+patch. The process applies the patch only when deterministic safety checks and
+Terraform validation/plan succeed. The model never receives permission to
+execute shell commands or modify the Git repository.
 """
 
 from __future__ import annotations
@@ -30,17 +30,28 @@ FORBIDDEN_PATCH_TERMS = {
     "azurerm_key_vault_access_policy",
 }
 
-SYSTEM_PROMPT = """You are a senior Terraform and cloud deployment remediation engineer.
+SYSTEM_PROMPT = """You are a senior Terraform and cloud deployment remediation engineer running on a Windows Jenkins agent.
 Analyze a Jenkins Terraform APPLY failure and propose the smallest safe code fix.
 
 Rules:
 1. Work only from the supplied failure log, git diff, and workspace files.
 2. Do not invent resources or cloud state that is not evidenced.
 3. Prefer a one-file, minimal textual patch.
-4. Do not propose IAM/RBAC, credential, network-security, database, destroy, or
+4. You may modify an existing Terraform local-exec command when the failure is
+   clearly caused by an OS/command compatibility issue and the replacement is
+   deterministic, local-only, and LOW risk. Do not add new shell commands or
+   external network actions.
+5. This pipeline runs on Windows and local-exec commands are executed by cmd.exe
+   unless the Terraform configuration explicitly specifies another interpreter.
+   A Unix command such as `test -f` is therefore invalid under the default Windows
+   shell. If the supplied log proves this exact problem, prefer a minimal Windows-
+   compatible condition that checks the file already created by the Terraform
+   configuration.
+6. Do not propose IAM/RBAC, credential, network-security, database, destroy, or
    production-impacting changes as automatic fixes. Set auto_fix=false for them.
-5. Never propose shell commands. The pipeline, not the model, executes commands.
-6. Return STRICT JSON only with this schema:
+7. Never propose a shell command as a separate action for the pipeline to execute.
+   Only return a textual replacement inside an existing Terraform configuration.
+8. Return STRICT JSON only with this schema:
 {
   "root_cause": "...",
   "category": "...",
@@ -52,7 +63,7 @@ Rules:
   "new_text": "replacement text",
   "rationale": "..."
 }
-7. If you cannot prove a safe fix, return auto_fix=false and empty file/patch fields.
+9. If you cannot prove a safe fix, return auto_fix=false and empty file/patch fields.
 """
 
 
@@ -101,7 +112,6 @@ def ask_model(log: str, files: dict[str, str], git_diff: str) -> dict:
         model=model,
         instructions=SYSTEM_PROMPT,
         input=json.dumps(context, ensure_ascii=False),
-        temperature=0,
     )
     text = response.output_text.strip()
     try:
