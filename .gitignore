@@ -1,0 +1,11 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+ai-remediation.tfplan
+*.ai-backup
+terraform/*.txt
+terraform-apply.log
+ai-remediation.json
+__pycache__/
