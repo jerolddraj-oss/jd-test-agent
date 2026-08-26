@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'Windows-Agent' }
 
     environment {
         TF_IN_AUTOMATION = 'true'
@@ -13,16 +13,23 @@ pipeline {
             steps { checkout scm }
         }
 
+        stage('Tool Check') {
+            steps {
+                bat 'terraform version'
+                bat 'python --version'
+            }
+        }
+
         stage('Terraform Init') {
-            steps { dir("${TF_DIR}") { sh 'terraform init -input=false' } }
+            steps { dir("${TF_DIR}") { bat 'terraform init -input=false' } }
         }
 
         stage('Terraform Validate') {
-            steps { dir("${TF_DIR}") { sh 'terraform validate' } }
+            steps { dir("${TF_DIR}") { bat 'terraform validate' } }
         }
 
         stage('Terraform Plan') {
-            steps { dir("${TF_DIR}") { sh 'terraform plan -out=tfplan' } }
+            steps { dir("${TF_DIR}") { bat 'terraform plan -out=tfplan' } }
         }
 
         stage('Approval') {
@@ -32,10 +39,13 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 script {
-                    int rc = sh(script: "cd ${TF_DIR} && terraform apply -auto-approve tfplan > ../terraform-apply.log 2>&1", returnStatus: true)
+                    int rc = bat(
+                        script: 'cd terraform && terraform apply -auto-approve tfplan > ..\\terraform-apply.log 2>&1',
+                        returnStatus: true
+                    )
                     if (rc != 0) {
                         env.TERRAFORM_APPLY_FAILED = 'true'
-                        currentBuild.description = 'Terraform apply failed — AI remediation started'
+                        currentBuild.description = 'Terraform apply failed - AI remediation started'
                         echo 'Terraform Apply failed. Continuing to controlled AI remediation.'
                     } else {
                         env.TERRAFORM_APPLY_FAILED = 'false'
@@ -50,9 +60,10 @@ pipeline {
             }
             steps {
                 script {
-                    // The MVP agent is intentionally executed inside the Jenkins
-                    // workspace. It may edit only Terraform/YAML files there.
-                    int rc = sh(script: "python3 agent/remediate.py --workspace ${TF_DIR} --log terraform-apply.log --max-attempts ${MAX_AI_REMEDIATION_ATTEMPTS} > ai-remediation.json", returnStatus: true)
+                    int rc = bat(
+                        script: 'python agent\\remediate.py --workspace terraform --log terraform-apply.log --max-attempts %MAX_AI_REMEDIATION_ATTEMPTS% > ai-remediation.json',
+                        returnStatus: true
+                    )
                     archiveArtifacts artifacts: 'ai-remediation.json,terraform-apply.log', fingerprint: true
                     if (rc != 0) {
                         error('AI agent could not produce a validated safe remediation')
@@ -67,7 +78,10 @@ pipeline {
             }
             steps {
                 script {
-                    int rc = sh(script: "cd ${TF_DIR} && terraform apply -auto-approve ai-remediation.tfplan", returnStatus: true)
+                    int rc = bat(
+                        script: 'cd terraform && terraform apply -auto-approve ai-remediation.tfplan',
+                        returnStatus: true
+                    )
                     if (rc != 0) {
                         error('AI remediation validation/plan succeeded, but re-apply failed')
                     }
