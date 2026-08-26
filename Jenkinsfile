@@ -6,6 +6,10 @@ pipeline {
         TF_INPUT = 'false'
         TF_DIR = 'terraform'
         MAX_AI_REMEDIATION_ATTEMPTS = '1'
+        // Configure these as Jenkins global/node environment variables.
+        // Do not commit API keys to Git.
+        AZURE_OPENAI_ENDPOINT = credentials('azure-openai-endpoint')
+        AZURE_OPENAI_MODEL = credentials('azure-openai-model')
     }
 
     stages {
@@ -17,6 +21,13 @@ pipeline {
             steps {
                 bat 'terraform version'
                 bat 'python --version'
+                bat 'python -m pip --version'
+            }
+        }
+
+        stage('Install AI Dependencies') {
+            steps {
+                bat 'python -m pip install --disable-pip-version-check -r requirements.txt'
             }
         }
 
@@ -46,7 +57,7 @@ pipeline {
                     if (rc != 0) {
                         env.TERRAFORM_APPLY_FAILED = 'true'
                         currentBuild.description = 'Terraform apply failed - AI remediation started'
-                        echo 'Terraform Apply failed. Continuing to controlled AI remediation.'
+                        echo 'Terraform Apply failed. Continuing to AI remediation.'
                     } else {
                         env.TERRAFORM_APPLY_FAILED = 'false'
                     }
@@ -60,13 +71,15 @@ pipeline {
             }
             steps {
                 script {
-                    int rc = bat(
-                        script: 'python agent\\remediate.py --workspace terraform --log terraform-apply.log --max-attempts %MAX_AI_REMEDIATION_ATTEMPTS% > ai-remediation.json',
-                        returnStatus: true
-                    )
-                    archiveArtifacts artifacts: 'ai-remediation.json,terraform-apply.log', fingerprint: true
-                    if (rc != 0) {
-                        error('AI agent could not produce a validated safe remediation')
+                    withCredentials([string(credentialsId: 'azure-openai-api-key', variable: 'AZURE_OPENAI_API_KEY')]) {
+                        int rc = bat(
+                            script: 'python agent\\ai_remediate.py --workspace terraform --log terraform-apply.log > ai-remediation.json',
+                            returnStatus: true
+                        )
+                        archiveArtifacts artifacts: 'ai-remediation.json,terraform-apply.log', fingerprint: true
+                        if (rc != 0) {
+                            error('AI agent did not produce a validated safe remediation')
+                        }
                     }
                 }
             }
@@ -74,7 +87,7 @@ pipeline {
 
         stage('Re-Apply After AI Fix') {
             when {
-                expression { env.TERRAFORM_APPLY_FAILED == 'true' && fileExists('ai-remediation.json') }
+                expression { env.TERRAFORM_APPLY_FAILED == 'true' && fileExists('terraform/ai-remediation.tfplan') }
             }
             steps {
                 script {
