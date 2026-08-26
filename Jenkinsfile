@@ -6,8 +6,8 @@ pipeline {
         TF_INPUT = 'false'
         TF_DIR = 'terraform'
         MAX_AI_REMEDIATION_ATTEMPTS = '1'
-        // Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_MODEL in Jenkins
-        // global/node environment configuration. Never commit API keys.
+        // MVP-2 uses a LOCAL-ONLY Terraform test configuration.
+        // Do not copy the reset stage into production pipelines.
     }
 
     stages {
@@ -38,6 +38,17 @@ pipeline {
 
         stage('Terraform Init') {
             steps { dir("${TF_DIR}") { bat 'terraform init -input=false' } }
+        }
+
+        stage('Reset Local Test State') {
+            steps {
+                // This project is intentionally local-only for MVP-2.
+                // Destroying the local test state makes every build deterministic
+                // and does not touch Azure/AWS. Never use this stage in production.
+                dir("${TF_DIR}") {
+                    bat 'terraform destroy -auto-approve -input=false'
+                }
+            }
         }
 
         stage('Terraform Validate') {
