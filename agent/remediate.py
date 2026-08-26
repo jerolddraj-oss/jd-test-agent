@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import re
 import subprocess
 from pathlib import Path
 
@@ -38,7 +36,7 @@ def diagnose(log: str) -> dict:
             "category": "TF_APPLY_PROVISIONER_FAILURE",
             "confidence": 0.99,
             "reason": "The null_resource local-exec provisioner is intentionally checking for a file that does not exist.",
-            "safe_fix": "replace the intentionally failing deployment gate with a successful deterministic command",
+            "safe_fix": "replace the intentionally failing deployment gate with a deterministic check for the file created by this deployment",
         }
     if "AuthorizationFailed" in log or "does not have authorization" in log:
         return {"category": "CLOUD_PERMISSION", "confidence": 0.97, "reason": "Cloud authorization failure; code changes should not be used as an automatic IAM fix.", "safe_fix": None}
@@ -49,10 +47,10 @@ def diagnose(log: str) -> dict:
 
 def apply_demo_fix(workspace: Path) -> dict:
     changed = []
+    old = 'command = "test -f ${path.module}/THIS_FILE_DOES_NOT_EXIST.txt"'
+    new = 'command = "test -f ${path.module}/${var.deployment_name}.txt"'
     for p in workspace.rglob("*.tf"):
         text = p.read_text()
-        old = 'command = "test -f ${path.module}/generated/THIS_FILE_DOES_NOT_EXIST.txt"'
-        new = 'command = "test -f ${path.module}/generated/${var.deployment_name}.txt"'
         if old in text:
             backup = p.with_suffix(p.suffix + ".ai-backup")
             backup.write_text(text)
@@ -76,7 +74,6 @@ def main() -> int:
     log = log_path.read_text(errors="replace")
     evidence = collect(workspace, log)
     diagnosis = diagnose(log)
-
     result = {
         "agent": "agentic-terraform-mvp1",
         "evidence": evidence,
@@ -106,7 +103,6 @@ def main() -> int:
         "validate": {"returncode": rc_validate, "output": out_validate[-10000:]},
         "plan": {"returncode": rc_plan, "output": out_plan[-10000:]},
     }
-
     print(json.dumps(result, indent=2))
     return 0 if rc_fmt == 0 and rc_validate == 0 and rc_plan == 0 else 4
 
