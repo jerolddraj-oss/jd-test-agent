@@ -22,7 +22,7 @@ variable "deployment_name" {
 }
 
 locals {
-  output_path = "${path.module}/generated/${var.deployment_name}.txt"
+  output_path = "${path.module}/${var.deployment_name}.txt"
 }
 
 resource "local_file" "deployment" {
@@ -32,15 +32,15 @@ resource "local_file" "deployment" {
 
 # Intentionally broken for MVP-1. init/validate/plan pass, but apply fails
 # because the provisioner exits non-zero. The remediation agent is expected
-# to replace the failing command with a safe success condition in the
-# temporary Jenkins workspace, then re-run validation/plan/apply.
+# to replace the failing command with a deterministic success condition in
+# the temporary Jenkins workspace, then re-run validation/plan/apply.
 resource "null_resource" "deployment_gate" {
   triggers = {
     deployment_file = local_file.deployment.id
   }
 
   provisioner "local-exec" {
-    command = "test -f ${path.module}/generated/THIS_FILE_DOES_NOT_EXIST.txt"
+    command = "test -f ${path.module}/THIS_FILE_DOES_NOT_EXIST.txt"
   }
 }
 
