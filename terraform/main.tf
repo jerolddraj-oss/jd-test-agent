@@ -6,10 +6,15 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.5"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
   }
 }
 
 provider "local" {}
+provider "null" {}
 
 variable "deployment_name" {
   type    = string
@@ -20,12 +25,23 @@ locals {
   output_path = "${path.module}/generated/${var.deployment_name}.txt"
 }
 
-# MVP-1 intentionally contains a valid Terraform configuration that fails
-# during APPLY. The invalid argument is not caught by init/validate/plan in
-# this test harness because the failure is produced by the helper script.
 resource "local_file" "deployment" {
   filename = local.output_path
   content  = "deployment=${var.deployment_name}\n"
+}
+
+# Intentionally broken for MVP-1. init/validate/plan pass, but apply fails
+# because the provisioner exits non-zero. The remediation agent is expected
+# to replace the failing command with a safe success condition in the
+# temporary Jenkins workspace, then re-run validation/plan/apply.
+resource "null_resource" "deployment_gate" {
+  triggers = {
+    deployment_file = local_file.deployment.id
+  }
+
+  provisioner "local-exec" {
+    command = "test -f ${path.module}/generated/THIS_FILE_DOES_NOT_EXIST.txt"
+  }
 }
 
 output "deployment_file" {
