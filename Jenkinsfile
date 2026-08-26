@@ -6,10 +6,8 @@ pipeline {
         TF_INPUT = 'false'
         TF_DIR = 'terraform'
         MAX_AI_REMEDIATION_ATTEMPTS = '1'
-        // Configure these as Jenkins global/node environment variables.
-        // Do not commit API keys to Git.
-        AZURE_OPENAI_ENDPOINT = credentials('azure-openai-endpoint')
-        AZURE_OPENAI_MODEL = credentials('azure-openai-model')
+        // Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_MODEL in Jenkins
+        // global/node environment configuration. Never commit API keys.
     }
 
     stages {
@@ -22,6 +20,13 @@ pipeline {
                 bat 'terraform version'
                 bat 'python --version'
                 bat 'python -m pip --version'
+            }
+        }
+
+        stage('AI Configuration Check') {
+            steps {
+                bat 'if not defined AZURE_OPENAI_ENDPOINT exit /b 1'
+                bat 'if not defined AZURE_OPENAI_MODEL exit /b 1'
             }
         }
 
