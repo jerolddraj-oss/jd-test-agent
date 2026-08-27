@@ -16,8 +16,6 @@ import re
 import subprocess
 from pathlib import Path
 
-from openai import OpenAI
-
 MAX_FILE_BYTES = 120_000
 MAX_TOTAL_CONTEXT = 500_000
 ALLOWED_EXTENSIONS = {".tf", ".tfvars", ".yaml", ".yml", ".json"}
@@ -38,26 +36,26 @@ Rules:
 2. Do not invent resources or cloud state that is not evidenced.
 3. Prefer a one-file, minimal textual patch.
 4. You may modify an existing Terraform local-exec command when the failure is
-   clearly caused by an OS/command compatibility issue and the replacement is
-   deterministic, local-only, and LOW risk. Do not add new shell commands,
-   external network actions, or new resources.
-5. This pipeline runs on Windows and local-exec commands are executed by cmd.exe
-   unless the Terraform configuration explicitly specifies another interpreter.
-   The supplied failure proves that Unix `test -f` is being sent to cmd.exe.
-   For this exact failure, the preferred fix is to replace only the existing
-   `test -f ...` command with a Windows `if exist ...` check for the deployment
-   file already created by the configuration.
-6. The Windows replacement must remain deterministic and local-only. Use the
-   existing deployment file path and prefer forward slashes in the Terraform
-   string so the replacement does not introduce an invalid Terraform escape.
-   Do not use PowerShell, curl, wget, package managers, cloud CLIs, or network access.
-7. Do not propose IAM/RBAC, credentials, network-security, database, destroy, or
+   clearly a deterministic local deployment-gate problem and the replacement is
+   local-only and LOW risk. Do not add new shell commands, external network
+   actions, or new resources.
+5. This pipeline runs on Windows and local-exec commands are executed by cmd.exe.
+6. For the controlled MVP test, the existing deployment file is
+   `${path.module}/agentic-mvp.txt` and the current command deliberately returns
+   exit code 1 when that file exists:
+   `if exist ${path.module}/agentic-mvp.txt (exit 1) else (exit 0)`.
+   The preferred fix is to correct only that existing condition so that an
+   existing deployment file returns exit code 0 and a missing file returns 1:
+   `if exist ${path.module}/agentic-mvp.txt (exit 0) else (exit 1)`.
+7. Do not use PowerShell, curl, wget, package managers, cloud CLIs, network access,
+   or new resources for this remediation.
+8. Do not propose IAM/RBAC, credentials, network-security, database, destroy, or
    production-impacting changes as automatic fixes. Set auto_fix=false for them.
-8. Never propose a shell command as a separate action for the pipeline to execute.
+9. Never propose a shell command as a separate action for the pipeline to execute.
    Only return a textual replacement inside the existing Terraform configuration.
-9. For the exact `test -f` Windows failure, use confidence >= 0.95, risk LOW,
-   auto_fix true, and modify only main.tf within the Terraform workspace.
-10. Return STRICT JSON only with this schema:
+10. For the exact controlled deployment-gate failure, use confidence >= 0.95,
+    risk LOW, auto_fix true, and modify only main.tf within the Terraform workspace.
+11. Return STRICT JSON only with this schema:
 {
   "root_cause": "...",
   "category": "...",
@@ -69,7 +67,7 @@ Rules:
   "new_text": "replacement text",
   "rationale": "..."
 }
-11. If you cannot prove a safe fix, return auto_fix=false and empty file/patch fields.
+12. If you cannot prove a safe fix, return auto_fix=false and empty file/patch fields.
 """
 
 
@@ -163,18 +161,14 @@ def safety_check(proposal: dict, workspace: Path) -> tuple[bool, str]:
         if term in combined:
             return False, f"forbidden high-risk term detected: {term}"
 
-    # MVP-2 deterministic allow-list for the deliberately injected Windows test.
-    # The model must diagnose the failure and propose the patch, but only this
-    # exact low-risk local Terraform compatibility change is eligible for the
-    # automatic remediation path.
-    normalized_new = str(proposal["new_text"]).replace("\\", "/").lower()
+    # Deterministic allow-list for the deliberately injected MVP deployment-gate test.
     exact_windows_test = (
         rel.as_posix() == "main.tf"
-        and proposal["old_text"].strip() == 'command = "test -f ${path.module}/agentic-mvp.txt"'
-        and normalized_new.strip() == 'command = "if exist ${path.module}/agentic-mvp.txt (exit 0) else (exit 1)"'
+        and proposal["old_text"].strip() == 'command = "if exist ${path.module}/agentic-mvp.txt (exit 1) else (exit 0)"'
+        and proposal["new_text"].strip() == 'command = "if exist ${path.module}/agentic-mvp.txt (exit 0) else (exit 1)"'
     )
     if exact_windows_test:
-        return True, "safe: approved MVP-2 Windows local-exec compatibility remediation"
+        return True, "safe: approved deterministic MVP deployment-gate remediation"
 
     return True, "safe"
 
