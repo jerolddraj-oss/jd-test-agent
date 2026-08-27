@@ -1,6 +1,14 @@
 pipeline {
     agent { label 'Windows-Agent' }
 
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: ['DEPLOY', 'DESTROY'],
+            description: 'DEPLOY creates/repairs the test environment. DESTROY removes the Terraform-managed test environment.'
+        )
+    }
+
     environment {
         TF_IN_AUTOMATION = 'true'
         TF_INPUT = 'false'
@@ -41,7 +49,34 @@ pipeline {
             }
         }
 
+        stage('Terraform Destroy') {
+            when {
+                expression { params.ACTION == 'DESTROY' }
+            }
+            steps {
+                script {
+                    input message: 'WARNING: Destroy the Agentic Terraform test environment and both Azure VMs?', ok: 'Destroy'
+
+                    withCredentials([
+                        string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                        string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                        string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                        string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
+                        string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
+                    ]) {
+                        dir("${TF_DIR}") {
+                            bat 'terraform init -input=false'
+                            bat 'terraform destroy -auto-approve -input=false'
+                        }
+                    }
+                }
+            }
+        }
+
         stage('AI Configuration Check') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 bat 'if not defined AZURE_OPENAI_ENDPOINT exit /b 1'
                 bat 'if not defined AZURE_OPENAI_MODEL exit /b 1'
@@ -49,6 +84,9 @@ pipeline {
         }
 
         stage('Azure OpenAI Connectivity Test') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 withCredentials([
                     string(credentialsId: 'azure-openai-api-key', variable: 'AZURE_OPENAI_API_KEY')
@@ -61,12 +99,18 @@ pipeline {
         }
 
         stage('Install AI Dependencies') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 bat 'python -m pip install --disable-pip-version-check -r requirements.txt'
             }
         }
 
         stage('Terraform Init') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 withCredentials([
                     string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
@@ -82,6 +126,9 @@ pipeline {
         }
 
         stage('Terraform Validate') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 withCredentials([
                     string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
@@ -98,6 +145,9 @@ pipeline {
         }
 
         stage('Terraform Plan') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 withCredentials([
                     string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
@@ -114,12 +164,18 @@ pipeline {
         }
 
         stage('Approval') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 input message: 'Approve Terraform deployment of the two test VMs?', ok: 'Deploy'
             }
         }
 
         stage('Terraform Apply') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 script {
                     withCredentials([
@@ -149,7 +205,7 @@ pipeline {
 
         stage('AI Remediation') {
             when {
-                expression { env.TERRAFORM_APPLY_FAILED == 'true' }
+                expression { params.ACTION == 'DEPLOY' && env.TERRAFORM_APPLY_FAILED == 'true' }
             }
             steps {
                 script {
@@ -180,7 +236,7 @@ pipeline {
         stage('Re-Apply After AI Fix') {
             when {
                 expression {
-                    env.TERRAFORM_APPLY_FAILED == 'true' && fileExists('terraform/ai-remediation.tfplan')
+                    params.ACTION == 'DEPLOY' && env.TERRAFORM_APPLY_FAILED == 'true' && fileExists('terraform/ai-remediation.tfplan')
                 }
             }
             steps {
@@ -210,7 +266,7 @@ pipeline {
 
         stage('Terraform Outputs') {
             when {
-                expression { env.TERRAFORM_APPLY_FAILED != 'true' }
+                expression { params.ACTION == 'DEPLOY' && env.TERRAFORM_APPLY_FAILED != 'true' }
             }
             steps {
                 withCredentials([
