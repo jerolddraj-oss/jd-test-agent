@@ -24,10 +24,17 @@ pipeline {
 
         stage('Azure Authentication Check') {
             steps {
-                bat 'if not defined ARM_CLIENT_ID exit /b 1'
-                bat 'if not defined ARM_CLIENT_SECRET exit /b 1'
-                bat 'if not defined ARM_TENANT_ID exit /b 1'
-                bat 'if not defined ARM_SUBSCRIPTION_ID exit /b 1'
+                withCredentials([
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID')
+                ]) {
+                    bat 'if not defined ARM_CLIENT_ID exit /b 1'
+                    bat 'if not defined ARM_CLIENT_SECRET exit /b 1'
+                    bat 'if not defined ARM_TENANT_ID exit /b 1'
+                    bat 'if not defined ARM_SUBSCRIPTION_ID exit /b 1'
+                }
             }
         }
 
@@ -58,24 +65,47 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                dir("${TF_DIR}") {
-                    bat 'terraform init -input=false'
+                withCredentials([
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID')
+                ]) {
+                    dir("${TF_DIR}") {
+                        bat 'terraform init -input=false'
+                    }
                 }
             }
         }
 
         stage('Terraform Validate') {
             steps {
-                dir("${TF_DIR}") {
-                    bat 'terraform validate'
+                withCredentials([
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
+                    string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
+                ]) {
+                    dir("${TF_DIR}") {
+                        bat 'terraform validate'
+                    }
                 }
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                dir("${TF_DIR}") {
-                    bat 'terraform plan -input=false -out=tfplan'
+                withCredentials([
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
+                    string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
+                ]) {
+                    dir("${TF_DIR}") {
+                        bat 'terraform plan -input=false -out=tfplan'
+                    }
                 }
             }
         }
@@ -89,18 +119,26 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 script {
-                    int rc = bat(
-                        script: 'cd terraform && terraform apply -auto-approve tfplan > ..\\terraform-apply.log 2>&1',
-                        returnStatus: true
-                    )
+                    withCredentials([
+                        string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                        string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                        string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                        string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
+                        string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
+                    ]) {
+                        int rc = bat(
+                            script: 'cd terraform && terraform apply -auto-approve tfplan > ..\\terraform-apply.log 2>&1',
+                            returnStatus: true
+                        )
 
-                    if (rc != 0) {
-                        env.TERRAFORM_APPLY_FAILED = 'true'
-                        currentBuild.description = 'Terraform apply failed - AI remediation started'
-                        echo 'Terraform Apply failed. Continuing to AI remediation.'
-                        bat 'type terraform-apply.log'
-                    } else {
-                        env.TERRAFORM_APPLY_FAILED = 'false'
+                        if (rc != 0) {
+                            env.TERRAFORM_APPLY_FAILED = 'true'
+                            currentBuild.description = 'Terraform apply failed - AI remediation started'
+                            echo 'Terraform Apply failed. Continuing to AI remediation.'
+                            bat 'type terraform-apply.log'
+                        } else {
+                            env.TERRAFORM_APPLY_FAILED = 'false'
+                        }
                     }
                 }
             }
@@ -144,17 +182,25 @@ pipeline {
             }
             steps {
                 script {
-                    int rc = bat(
-                        script: 'cd terraform && terraform apply -auto-approve ai-remediation.tfplan',
-                        returnStatus: true
-                    )
+                    withCredentials([
+                        string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                        string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                        string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                        string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
+                        string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
+                    ]) {
+                        int rc = bat(
+                            script: 'cd terraform && terraform apply -auto-approve ai-remediation.tfplan',
+                            returnStatus: true
+                        )
 
-                    if (rc != 0) {
-                        error('AI remediation validation/plan succeeded, but re-apply failed')
+                        if (rc != 0) {
+                            error('AI remediation validation/plan succeeded, but re-apply failed')
+                        }
+
+                        env.TERRAFORM_APPLY_FAILED = 'false'
+                        currentBuild.description = 'Deployment recovered by AI remediation'
                     }
-
-                    env.TERRAFORM_APPLY_FAILED = 'false'
-                    currentBuild.description = 'Deployment recovered by AI remediation'
                 }
             }
         }
@@ -164,8 +210,16 @@ pipeline {
                 expression { env.TERRAFORM_APPLY_FAILED != 'true' }
             }
             steps {
-                dir("${TF_DIR}") {
-                    bat 'terraform output'
+                withCredentials([
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
+                    string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
+                ]) {
+                    dir("${TF_DIR}") {
+                        bat 'terraform output'
+                    }
                 }
             }
         }
