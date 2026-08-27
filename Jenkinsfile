@@ -25,10 +25,10 @@ pipeline {
         stage('Azure Authentication Check') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
                     string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
                 ]) {
                     bat 'if not defined ARM_CLIENT_ID exit /b 1'
@@ -69,10 +69,10 @@ pipeline {
         stage('Terraform Init') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID')
                 ]) {
                     dir("${TF_DIR}") {
                         bat 'terraform init -input=false'
@@ -84,10 +84,10 @@ pipeline {
         stage('Terraform Validate') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
                     string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
                 ]) {
                     dir("${TF_DIR}") {
@@ -100,10 +100,10 @@ pipeline {
         stage('Terraform Plan') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
                     string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
                 ]) {
                     dir("${TF_DIR}") {
@@ -123,10 +123,10 @@ pipeline {
             steps {
                 script {
                     withCredentials([
-                        string(credentialsId: 'AZURE_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                        string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                        string(credentialsId: 'AZURE_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                        string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
+                        string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                        string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                        string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                        string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
                         string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
                     ]) {
                         int rc = bat(
@@ -186,10 +186,10 @@ pipeline {
             steps {
                 script {
                     withCredentials([
-                        string(credentialsId: 'AZURE_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                        string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                        string(credentialsId: 'AZURE_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                        string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
+                        string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                        string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                        string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                        string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
                         string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
                     ]) {
                         int rc = bat(
@@ -214,10 +214,10 @@ pipeline {
             }
             steps {
                 withCredentials([
-                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID'),
+                    string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'azure-tenant-id', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'azure-subscription-id', variable: 'ARM_SUBSCRIPTION_ID'),
                     string(credentialsId: 'azure-vm-admin-password', variable: 'TF_VAR_admin_password')
                 ]) {
                     dir("${TF_DIR}") {
