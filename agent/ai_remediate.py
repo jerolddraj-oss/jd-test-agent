@@ -16,6 +16,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from openai import OpenAI
+
 MAX_FILE_BYTES = 120_000
 MAX_TOTAL_CONTEXT = 500_000
 ALLOWED_EXTENSIONS = {".tf", ".tfvars", ".yaml", ".yml", ".json"}
@@ -161,7 +163,6 @@ def safety_check(proposal: dict, workspace: Path) -> tuple[bool, str]:
         if term in combined:
             return False, f"forbidden high-risk term detected: {term}"
 
-    # Deterministic allow-list for the deliberately injected MVP deployment-gate test.
     exact_windows_test = (
         rel.as_posix() == "main.tf"
         and proposal["old_text"].strip() == 'command = "if exist ${path.module}/agentic-mvp.txt (exit 1) else (exit 0)"'
