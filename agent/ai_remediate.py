@@ -47,14 +47,16 @@ Rules:
    For this exact failure, the preferred fix is to replace only the existing
    `test -f ...` command with a Windows `if exist ...` check for the deployment
    file already created by the configuration.
-6. The Windows replacement must remain deterministic and local-only. Do not use
-   PowerShell, curl, wget, package managers, cloud CLIs, or network access.
+6. The Windows replacement must remain deterministic and local-only. Use the
+   existing deployment file path and prefer forward slashes in the Terraform
+   string so the replacement does not introduce an invalid Terraform escape.
+   Do not use PowerShell, curl, wget, package managers, cloud CLIs, or network access.
 7. Do not propose IAM/RBAC, credentials, network-security, database, destroy, or
    production-impacting changes as automatic fixes. Set auto_fix=false for them.
 8. Never propose a shell command as a separate action for the pipeline to execute.
    Only return a textual replacement inside the existing Terraform configuration.
 9. For the exact `test -f` Windows failure, use confidence >= 0.95, risk LOW,
-   auto_fix true, and modify only terraform/main.tf.
+   auto_fix true, and modify only main.tf within the Terraform workspace.
 10. Return STRICT JSON only with this schema:
 {
   "root_cause": "...",
@@ -162,14 +164,14 @@ def safety_check(proposal: dict, workspace: Path) -> tuple[bool, str]:
             return False, f"forbidden high-risk term detected: {term}"
 
     # MVP-2 deterministic allow-list for the deliberately injected Windows test.
-    # The LLM must still diagnose and propose the change, but only this exact
-    # class of local Terraform compatibility patch can bypass model wording
-    # differences around confidence/rationale.
+    # The model must diagnose the failure and propose the patch, but only this
+    # exact low-risk local Terraform compatibility change is eligible for the
+    # automatic remediation path.
+    normalized_new = str(proposal["new_text"]).replace("\\", "/").lower()
     exact_windows_test = (
         rel.as_posix() == "main.tf"
-        and 'test -f ${path.module}/THIS_FILE_DOES_NOT_EXIST.txt' in proposal["old_text"]
-        and 'if exist ${path.module}/agentic-mvp.txt' in proposal["new_text"].lower()
-        and 'terraform/main.tf' not in proposal["new_text"].lower()
+        and proposal["old_text"].strip() == 'command = "test -f ${path.module}/agentic-mvp.txt"'
+        and normalized_new.strip() == 'command = "if exist ${path.module}/agentic-mvp.txt (exit 0) else (exit 1)"'
     )
     if exact_windows_test:
         return True, "safe: approved MVP-2 Windows local-exec compatibility remediation"
