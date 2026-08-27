@@ -39,16 +39,17 @@ resource "local_file" "deployment" {
 }
 
 # Intentionally broken for the AI-remediation test. The file DOES exist, but
-# the Unix `test -f` command is not available through Windows cmd.exe.
-# The AI remediation agent should replace this command with the Windows
-# equivalent `if exist` check, then validate and re-plan before re-apply.
+# this Windows cmd.exe condition deliberately returns exit code 1 when the
+# expected deployment file exists. The AI remediation agent should diagnose
+# the failed deployment gate and replace only the condition with the correct
+# Windows `if exist ... (exit 0) else (exit 1)` check, then validate and re-plan.
 resource "null_resource" "deployment_gate" {
   triggers = {
     deployment_file = local_file.deployment.id
   }
 
   provisioner "local-exec" {
-    command = "test -f ${path.module}/agentic-mvp.txt"
+    command = "if exist ${path.module}/agentic-mvp.txt (exit 1) else (exit 0)"
   }
 }
 
