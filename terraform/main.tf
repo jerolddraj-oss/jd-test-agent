@@ -29,26 +29,6 @@ variable "deployment_name" {
   default = "agentic-mvp"
 }
 
-variable "location" {
-  type    = string
-  default = "eastus"
-}
-
-variable "admin_username" {
-  type    = string
-  default = "azureadmin"
-}
-
-variable "admin_password" {
-  type      = string
-  sensitive = true
-}
-
-variable "resource_group_name" {
-  type    = string
-  default = "rg-agentic-terraform-mvp"
-}
-
 locals {
   output_path = "${path.module}/${var.deployment_name}.txt"
 }
@@ -58,15 +38,17 @@ resource "local_file" "deployment" {
   content  = "deployment=${var.deployment_name}\n"
 }
 
-# Intentionally broken for the AI-remediation test. The first apply fails on
-# Windows because cmd.exe does not provide the Unix `test -f` command.
+# Intentionally broken for the AI-remediation test. The file DOES exist, but
+# the Unix `test -f` command is not available through Windows cmd.exe.
+# The AI remediation agent should replace this command with the Windows
+# equivalent `if exist` check, then validate and re-plan before re-apply.
 resource "null_resource" "deployment_gate" {
   triggers = {
     deployment_file = local_file.deployment.id
   }
 
   provisioner "local-exec" {
-    command = "test -f ${path.module}/THIS_FILE_DOES_NOT_EXIST.txt"
+    command = "test -f ${path.module}/agentic-mvp.txt"
   }
 }
 
@@ -160,14 +142,14 @@ resource "azurerm_network_interface_security_group_association" "vm2" {
 }
 
 resource "azurerm_linux_virtual_machine" "vm1" {
-  name                  = "agentic-vm1"
-  resource_group_name   = azurerm_resource_group.main.name
-  location              = azurerm_resource_group.main.location
-  size                  = "Standard_B1s"
-  admin_username        = var.admin_username
-  admin_password        = var.admin_password
+  name                            = "agentic-vm1"
+  resource_group_name             = azurerm_resource_group.main.name
+  location                        = azurerm_resource_group.main.location
+  size                            = "Standard_B1s"
+  admin_username                  = var.admin_username
+  admin_password                  = var.admin_password
   disable_password_authentication = false
-  network_interface_ids = [azurerm_network_interface.vm1.id]
+  network_interface_ids           = [azurerm_network_interface.vm1.id]
 
   os_disk {
     caching              = "ReadWrite"
@@ -188,14 +170,14 @@ resource "azurerm_linux_virtual_machine" "vm1" {
 }
 
 resource "azurerm_linux_virtual_machine" "vm2" {
-  name                  = "agentic-vm2"
-  resource_group_name   = azurerm_resource_group.main.name
-  location              = azurerm_resource_group.main.location
-  size                  = "Standard_B1s"
-  admin_username        = var.admin_username
-  admin_password        = var.admin_password
+  name                            = "agentic-vm2"
+  resource_group_name             = azurerm_resource_group.main.name
+  location                        = azurerm_resource_group.main.location
+  size                            = "Standard_B1s"
+  admin_username                  = var.admin_username
+  admin_password                  = var.admin_password
   disable_password_authentication = false
-  network_interface_ids = [azurerm_network_interface.vm2.id]
+  network_interface_ids           = [azurerm_network_interface.vm2.id]
 
   os_disk {
     caching              = "ReadWrite"
